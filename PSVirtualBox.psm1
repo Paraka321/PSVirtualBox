@@ -1,14 +1,6 @@
 #Requires -version 2.0
 
-<#
-
-TODO:
-Integrate Progress bar
-Create new VM
-Create a new HDD
-
-#>
-
+#region Disclaimer
 <#
   ****************************************************************
   * DO NOT USE IN A PRODUCTION ENVIRONMENT UNTIL YOU HAVE TESTED *
@@ -17,22 +9,24 @@ Create a new HDD
   * DO NOT USE IT OUTSIDE OF A SECURE, TEST SETTING.             *
   ****************************************************************
 #>
+#endregion Disclaimer
 
 Function Get-VirtualBox {
 
 <#
 .SYNOPSIS
-Get the VirtualBox service
+Get the VirtualBox service.
 .DESCRIPTION
 Create a PowerShell object for the VirtualBox COM object.
 .EXAMPLE
 PS C:\> $vbox=Get-VirtualBox
-Create a variable $vbox to referece the VirtualBox service
+Create a variable $vbox to reference the VirtualBox service.
 .NOTES
 NAME        :  Get-VirtualBox
 VERSION     :  0.9
-LAST UPDATED:  6/10/2011
 AUTHOR      :  Jeffery Hicks
+LAST UPDATED:  7/26/2017
+UPDATED BY  :  J Parker Galbraith
 .LINK
 Get-VBoxMachine
 Stop-VBoxMachine
@@ -44,35 +38,83 @@ None
 COM Object
 #>
 
-[cmdletbinding()]
-Param()
+    [cmdletbinding()]
+    Param()
 
-Write-Verbose "Starting $($myinvocation.mycommand)"
-#create vbox app
-Write-Verbose "Creating the VirtualBox COM object"
-$vbox = New-Object -ComObject "VirtualBox.VirtualBox"
-
-$vbox
-Write-Verbose "Ending $($myinvocation.mycommand)"
-
+    Write-Verbose "Starting $($myinvocation.mycommand)"
+    
+    # Create vbox object
+    Write-Verbose "Creating the VirtualBox COM object"
+    $vbox = New-Object -ComObject "VirtualBox.VirtualBox"
+    $vbox
+    Write-Verbose "Ending $($myinvocation.mycommand)"
 }
 
-Function Get-VBoxMachine {
+Function Get-VBoxHostProcess {
 
 <#
 .SYNOPSIS
-Get a VirtualBox virtual machine
+Get all VirtualBox related processes on the host.
 .DESCRIPTION
-Retrieve any or all vritual box machines by name, by state or all. The default usage, without any parameters is to display all running virtual machines. Use -IncludeRaw to add the native COM object for the virtual machine.
+Find all running processes related to VirtualBox on the host machine.
+.EXAMPLE
+PS C:\> Get-VBoxProcess
+Handles  NPM(K)    PM(K)      WS(K) VM(M)   CPU(s)     Id ProcessName
+-------  ------    -----      ----- -----   ------     -- -----------
+    401      56    36272      27956   139    36.63   1876 VBoxHeadless
+    754     129   103736      52940   244    76.85  12244 VBoxHeadless
+   3444      17    16076      11844   109 1,351.14   8176 VBoxSVC
+    193      15    19416      55140   137     1.28  12212 VirtualBox
+
+Get all running VirtualBox related processes on the host machine.
+.NOTES
+NAME        :  Get-VboxProcess
+VERSION     :  0.9
+LAST UPDATED:  7/26/2017
+AUTHOR      :  Jeffery Hicks
+UPDATED BY  :  J Parker Galbraith
+.LINK
+Get-VirtualBox
+.INPUTS
+None
+.OUTPUTS
+Process object
+#>
+
+    [cmdletbinding()]
+    Param()
+
+    Write-Verbose "Starting $($myinvocation.mycommand)"
+    # Check for VirtualBox related processes on the host
+    Try {
+        $processes = Get-Process -ErrorAction "Stop" | Where {$_.path -match "oracle\\virt"}
+        Write-Verbose "Found $($processes | measure-object).Count processes)"
+        $processes
+    }
+    Catch {
+        Write-Host "Failed to find any VirtualBox related processes." -ForegroundColor Magenta
+    }
+    Finally {
+        Write-Verbose "Ending $($myinvocation.mycommand)"
+    }
+} #end function
+
+Function Get-VBoxVM {
+
+<#
+.SYNOPSIS
+Get a VirtualBox virtual machine.
+.DESCRIPTION
+Gets any or all virtual box machines by name, by state or all. The default usage, without any parameters is to display all running virtual machines. Use -IncludeRaw to add the native COM object for the virtual machine.
 .PARAMETER Name
-The name of a virtual machine. IMPORTANT: Names are case sensitive.
-.PARAMETER All
-Return all virtual machines regardless of state. Valid values are:
+The name of a virtual machine. NOTE: Names are case sensitive.
+.PARAMETER State
+Return virtual machines based on their state. Valid values are:
 "Stopped","Running","Saved","Teleported","Aborted","Paused","Stuck","Snapshotting",
 "Starting","Stopping","Restoring","TeleportingPausedVM","TeleportingIn","FaultTolerantSync",
-"DeletingSnapshotOnline","DeletingSnapshot", and "SettingUp"
-.PARAMETER State
-Return virtual machines based on their state.
+"DeletingSnapshotOnline","DeletingSnapshot", and "SettingUp".
+.PARAMETER All
+Returns all virtual machines regardless of state.
 .PARAMETER IncludeRaw
 Include the raw or native COM object for the virtual machine.
 .EXAMPLE
@@ -98,7 +140,7 @@ Description : v11.04 Natty Narwhal
 State       : Running
 OS          : Ubuntu_64
 
-Return all running virtual machines
+Gets all running virtual machines.
 .EXAMPLE
 PS C:\> Get-VBoxMachine -Name CoreDC01
 ID          : ed29417c-869a-45bf-bbf3-79a407ade630
@@ -108,7 +150,7 @@ Description :
 State       : Running
 OS          : Windows2008_64
 
-Retrieve a machine by name. Names are case sensitive
+Gets a machine by name. Names are case sensitive
 .EXAMPLE
 PS C:\> Get-VBoxMachine -State Saved
 ID          : 2dd7f99a-d209-4b1c-ad79-2fa34e2c229a
@@ -118,12 +160,13 @@ Description : v11.04 Natty Narwhal
 State       : Saved
 OS          : Ubuntu_64
 
-Get suspended virtual machines
+Gets virtual machines by state. In this case, machines are suspended ("saved").
 .NOTES
 NAME        :  Get-VBoxMachine
 VERSION     :  0.9
-LAST UPDATED:  6/13/2011
 AUTHOR      :  Jeffery Hicks
+LAST UPDATED:  7/26/2017
+UPDATED BY  :  J Parker Galbraith
 .LINK
 Stop-VBoxMachine
 Start-VBoxMachine
@@ -134,223 +177,139 @@ Strings for virtual machine names
 Custom Object
 #>
 
-[cmdletbinding(DefaultParameterSetName="All")]
-Param(
-[Parameter(Position=0)]
-[string[]]$Name,
-[Parameter(ParameterSetName="All")]
-[switch]$All,
-[Parameter(ParameterSetName="All")]
-[ValidateSet("Stopped","Running","Saved","Teleported","Aborted",
-   "Paused","Stuck","Snapshotting","Starting","Stopping",
-   "Restoring","TeleportingPausedVM","TeleportingIn","FaultTolerantSync",
-   "DeletingSnapshotOnline","DeletingSnapshot","SettingUp")]
-[string]$State = "Running",
-[switch]$IncludeRaw
-)
+    [cmdletbinding(DefaultParameterSetName="All")]
+    Param(
+        [Parameter(Position=0)]
+        [string[]]$Name,
 
-Write-Verbose "Starting $($myinvocation.mycommand)"
+        [Parameter(ParameterSetName="All")]
+        [switch]$All,
 
-#get global vbox variable or create it if it doesn't exist create it
-if (-Not $global:vbox) {
-    $global:vbox = Get-VirtualBox
-}
+        [Parameter(ParameterSetName="All")]
+        [ValidateSet("Stopped","Running","Saved","Teleported","Aborted",
+        "Paused","Stuck","Snapshotting","Starting","Stopping",
+        "Restoring","TeleportingPausedVM","TeleportingIn","FaultTolerantSync",
+        "DeletingSnapshotOnline","DeletingSnapshot","SettingUp")]
+        [string]$State = "Running",
 
-if ($Name) {
- #get virtual machines by name
- Write-Verbose "Getting virtual machines by name"
- #initialize an array to hold virtual machines
- $vmachines = @()
- foreach ($item in $Name) {
-   Write-Verbose "Finding $item"
-   $vMachines+= $vbox.FindMachine($item)
- }
-} #if $name
-elseif ($All) {
- #get all machines
-  Write-Verbose "Getting all virtual machines"
-  $vmachines = $vbox.Machines
-}
-Else {
-  Write-Verbose "Getting virtual machines with a state of $State"
-
-  #convert State to numeric value
- Switch ($state) {
-   "Stopped"                {$istate =  1}
-   "Saved"                  {$istate =  2}
-   "Teleported"             {$istate =  3}
-   "Aborted"                {$istate =  4}
-   "Running"                {$istate =  5}
-   "Paused"                 {$istate =  6}
-   "Stuck"                  {$istate =  7}
-   "Snapshotting"           {$istate =  8}
-   "Starting"               {$istate =  9}
-   "Stopping"               {$istate = 10}
-   "Restoring"              {$istate = 11}
-   "TeleportingPausedVM"    {$istate = 12}
-   "TeleportingIn"          {$istate = 13}
-   "FaultTolerantSync"      {$istate = 14}
-   "DeletingSnapshotOnline" {$istate = 15}
-   "DeletingSnapshot"       {$istate = 16}
-   "SettingUp"              {$istate = 17}
-
-  }
-
-  $vmachines=$vbox.Machines | where {$_.State -eq $iState}
-}
-
-Write-Verbose "Found $(($vmachines | measure-object).count) virtual machines"
-if ($vmachines) {
-#write a virtual machine object to the pipeline
-foreach ($vmachine in $vmachines) {
-
-  #Decode state
-  Switch ($vmachine.State) {
-   1 {$vstate = "Stopped"}
-   2 {$vstate = "Saved"}
-   3 {$vstate = "Teleported"}
-   4 {$vstate = "Aborted"}
-   5 {$vstate = "Running"}
-   6 {$vstate = "Paused"}
-   7 {$vstate = "Stuck"}
-   8 {$vstate = "Snapshotting"}
-   9 {$vstate = "Starting"}
-   10 {$vstate = "Stopping"}
-   11 {$vstate = "Restoring"}
-   12 {$vstate = "TeleportingPausedVM"}
-   13 {$vstate = "TeleportingIn"}
-   14 {$vstate = "FaultTolerantSync"}
-   15 {$vstate = "DeletingSnapshotOnline"}
-   16 {$vstate = "DeletingSnapshot"}
-   17 {$vstate = "SettingUp"}
-
-   Default {$vstate = $vmachine.State}
-  }
-
-  $obj = New-Object -TypeName PSObject -Property @{
-     Name = $vmachine.name
-     State = $vstate
-     Description = $vmachine.description
-     ID = $vmachine.ID
-     OS = $vmachine.OSTypeID
-     MemoryMB = $vmachine.MemorySize
-  }
-  if ($IncludeRaw) {
-    #add raw COM object as a property
-    $obj | Add-Member -MemberType Noteproperty -Name Raw -Value $vmachine -passthru
-  }
-  else {
-    $obj
-  }
-} #foreach
-} #if vmachines
-else {
-  Write-Host "No matching virtual machines found. Machine names are CaSe SenSitIve." -ForegroundColor Magenta
-}
-Write-Verbose "Ending $($myinvocation.mycommand)"
-} #end function
-
-Function Suspend-VBoxMachine {
-
-<#
-.SYNOPSIS
-Suspend a virtual machine
-.DESCRIPTION
-This function will suspend or save the state of a running virtual machine. You must specify the virtual machine by its ID.
-.PARAMETER ID
-The ID or GUID of the running virtual machine.
-.PARAMETER WhatIf
-Show what the command would have processed
-.PARAMETER Confirm
-Confirm each suspension
-.EXAMPLE
-PS C:\> Get-VBoxMachine | Suspend-VBoxMachine
-Suspend all running virtual machines
-.NOTES
-NAME        :  Suspend-VBoxMachine
-VERSION     :  0.9
-LAST UPDATED:  6/13/2011
-AUTHOR      :  Jeffery Hicks
-.LINK
-Get-VBoxMachine
-Stop-VBoxMachine
-Start-VBoxMachine
-.INPUTS
-Strings
-.OUTPUTS
-None
-#>
-
-[cmdletbinding(SupportsShouldProcess=$True)]
-Param(
-[Parameter(Position=0,Mandatory=$True,HelpMessage="Enter a virtual box machine ID",
-ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$True)]
-[ValidateNotNullorEmpty()]
-[GUID[]]$ID
-)
-
-Begin {
-    Write-Verbose "Ending $($myinvocation.mycommand)"
-    #get global vbox variable or create it if it doesn't exist create it
+        [switch]$IncludeRaw
+    )
+    Write-Verbose "Starting $($myinvocation.mycommand)"
+    # Get global vbox variable or create it if it doesn't exist
     if (-Not $global:vbox) {
         $global:vbox = Get-VirtualBox
     }
-} #Begin
+    if ($Name) {
+    # Get virtual machines by name
+        Write-Verbose "Getting virtual machines by name"
+        # Initialize an array to hold virtual machines
+        $vmachines = @()
 
-Process {
- foreach ($item in $ID) {
-
- #get the virtual machine
- $vmachine = $vbox.FindMachine($item)
-
- if ($vmachine) {
-     Write-Host "Suspending $($vmachine.name)" -ForegroundColor Cyan
-     if ($pscmdlet.ShouldProcess($vmachine.name)) {
-         #create Vbox session object
-         Write-Verbose "Creating a session object"
-         $vsession = New-Object -ComObject "VirtualBox.Session"
-         #launch the VMProcess to lock in write mode
-         Write-verbose "Locking the machine"
-         $vmachine.LockMachine($vsession,1)
-         #run the SaveState() method
-         Write-Verbose "Saving State"
-         $vsession.Machine.SaveState()
-     } #should process
+        foreach ($item in $Name) {
+            Write-Verbose "Finding $item"
+            $vMachines+= $vbox.FindMachine($item)
+        }
+    } #if ($Name)
+    elseif ($All) {
+        # Get all machines
+        Write-Verbose "Getting all virtual machines"
+        $vmachines = $vbox.Machines
     }
     else {
-      Write-Warning "Failed to find virtual machine with an id of $ID"
+        Write-Verbose "Getting virtual machines with a state of $State"
+        # Convert State to numeric value
+        Switch ($state) {
+            "Stopped"                {$istate =  1}
+            "Saved"                  {$istate =  2}
+            "Teleported"             {$istate =  3}
+            "Aborted"                {$istate =  4}
+            "Running"                {$istate =  5}
+            "Paused"                 {$istate =  6}
+            "Stuck"                  {$istate =  7}
+            "Snapshotting"           {$istate =  8}
+            "Starting"               {$istate =  9}
+            "Stopping"               {$istate = 10}
+            "Restoring"              {$istate = 11}
+            "TeleportingPausedVM"    {$istate = 12}
+            "TeleportingIn"          {$istate = 13}
+            "FaultTolerantSync"      {$istate = 14}
+            "DeletingSnapshotOnline" {$istate = 15}
+            "DeletingSnapshot"       {$istate = 16}
+            "SettingUp"              {$istate = 17}
+        }
+        $vmachines=$vbox.Machines | where {$_.State -eq $iState}
     }
- } #foreach $id
-} #process
-
-End {
+    Write-Verbose "Found $(($vmachines | measure-object).count) virtual machines"
+    if ($vmachines) {
+        # Write a virtual machine object to the pipeline
+        foreach ($vmachine in $vmachines) {
+            # Decode state
+            Switch ($vmachine.State) {
+                1 {$vstate = "Stopped"}
+                2 {$vstate = "Saved"}
+                3 {$vstate = "Teleported"}
+                4 {$vstate = "Aborted"}
+                5 {$vstate = "Running"}
+                6 {$vstate = "Paused"}
+                7 {$vstate = "Stuck"}
+                8 {$vstate = "Snapshotting"}
+                9 {$vstate = "Starting"}
+                10 {$vstate = "Stopping"}
+                11 {$vstate = "Restoring"}
+                12 {$vstate = "TeleportingPausedVM"}
+                13 {$vstate = "TeleportingIn"}
+                14 {$vstate = "FaultTolerantSync"}
+                15 {$vstate = "DeletingSnapshotOnline"}
+                16 {$vstate = "DeletingSnapshot"}
+                17 {$vstate = "SettingUp"}
+                Default {$vstate = $vmachine.State}
+            }
+            $obj = New-Object -TypeName PSObject -Property @{
+                Name = $vmachine.name
+                State = $vstate
+                Description = $vmachine.description
+                ID = $vmachine.ID
+                OS = $vmachine.OSTypeID
+                MemoryMB = $vmachine.MemorySize
+            }
+            if ($IncludeRaw) {
+                # Add raw COM object as a property
+                $obj | Add-Member -MemberType Noteproperty -Name Raw -Value $vmachine -passthru
+            }
+            else {
+                $obj
+            }
+        } #foreach
+    } #if vmachines
+    else {
+        Write-Host "No matching virtual machines found. Machine names are CaSe SenSitIve." -ForegroundColor Magenta
+    }
     Write-Verbose "Ending $($myinvocation.mycommand)"
-} #End
-
 } #end function
 
-Function Start-VBoxMachine {
+Function Start-VBoxVM {
 
 <#
 .SYNOPSIS
-Start a virtual machine
+Starts a virtual machine.
 .DESCRIPTION
 Start one or more virtual box machines. The default is to start them in an interactive or GUI mode. But you can also run them headless which will start a new process window, but there will be no interactive console window.
 .PARAMETER Name
-The name of a virtual machine. IMPORTANT: Names are case sensitive.
+The name of a virtual machine. NOTE: Names are case sensitive.
 .PARAMETER Headless
 Run the virtual machine in a headless process.
 .EXAMPLE
 PS C:\> Start-VBoxMachine "Win7"
-Starts the virtual machine called Win7 in a GUI mode.
+Starts the virtual machine named Win7 in a GUI mode.
 .EXAMPLE
 PS C:\> Start-VBoxMachine CoreDC01 -headless
-Start virtual machine CoreDC01 headless.
+Start the virtual machine named CoreDC01 headless.
 .NOTES
 NAME        :  Start-VBoxMachine
 VERSION     :  0.9
-LAST UPDATED:  6/13/2011
 AUTHOR      :  SERENITY\Jeff
+LAST UPDATED:  7/26/2017
+UPDATED BY  :  J Parker Galbraith
 .LINK
 Get-VBoxMachine
 Stop-VBoxMachine
@@ -360,66 +319,60 @@ Strings
 None
 #>
 
-[cmdletbinding()]
-Param(
-[Parameter(Position=0,Mandatory=$True,HelpMessage="Enter a virtual machine name",
-ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$True)]
-[ValidateNotNullorEmpty()]
-[string[]]$Name,
-[switch]$Headless
-)
+    [cmdletbinding()]
+    Param(
+        [Parameter(Position=0,Mandatory=$True,HelpMessage="Enter a virtual machine name",
+            ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$True)]
+        [ValidateNotNullorEmpty()]
+        [string[]]$Name,
 
-Begin {
-    Write-Verbose "Starting $($myinvocation.mycommand)"
-   #get global vbox variable or create it if it doesn't exist create it
-    if (-Not $global:vbox) {
-        $global:vbox = Get-VirtualBox
-    }
-}#Begin
-
-Process {
-    foreach ($item in $name) {
-
-      #get the virtual machine
-      $vmachine=$vbox.FindMachine($item)
-
-     if ($vmachine) {
-         #create Vbox session object
-         Write-Verbose "Creating a session object"
-         $vsession = New-Object -ComObject "VirtualBox.Session"
-        if ($vmachine.State -lt 5) {
-          if ($Headless) {
-            Write-Verbose "Starting in headless mode"
-            $vmachine.LaunchVMProcess($vsession,"headless","")
-          }
-          else {
-            $vmachine.LaunchVMProcess($vsession,"gui","")
-          }
+        [switch]$Headless
+    )
+    Begin {
+        Write-Verbose "Starting $($myinvocation.mycommand)"
+        # Get global vbox variable or create it if it doesn't exist
+        if (-Not $global:vbox) {
+            $global:vbox = Get-VirtualBox
         }
-        else {
-          Write-Host "I can only start machines that have been stopped." -ForegroundColor Magenta
-        }
-
-    } #if vmachine
-
-     } #foreach
-} #process
-
-End {
-    Write-Verbose "Ending $($myinvocation.mycommand)"
-} #End
+    }#Begin
+    Process {
+        foreach ($item in $name) {
+            # Get the virtual machine
+            $vmachine=$vbox.FindMachine($item)
+            if ($vmachine) {
+                #create vbox session object
+                Write-Verbose "Creating a session object"
+                $vsession = New-Object -ComObject "VirtualBox.Session"
+                if ($vmachine.State -lt 5) {
+                    if ($Headless) {
+                        Write-Verbose "Starting in headless mode"
+                        $vmachine.LaunchVMProcess($vsession,"headless","")
+                    }
+                    else {
+                        $vmachine.LaunchVMProcess($vsession,"gui","")
+                    }
+                }
+                else {
+                    Write-Host "I can only start machines that have been stopped." -ForegroundColor Magenta
+                }
+            } #if ($vmachine)
+        } #foreach
+    } #Process
+    End {
+        Write-Verbose "Ending $($myinvocation.mycommand)"
+    } #End
 
 } #end function
 
-Function Stop-VBoxMachine {
+Function Stop-VBoxVM {
 
 <#
 .SYNOPSIS
-Stop a virtual machine
+Stop a virtual machine.
 .DESCRIPTION
 Stop one or more virtual box machines by sending the ACPI shutdown signal.
 .PARAMETER Name
-The name of a virtual machine. IMPORTANT: Names are case sensitive.
+The name of a virtual machine. NOTE: Names are case sensitive.
 .PARAMETER Headless
 Run the virtual machine in a headless process.
 .EXAMPLE
@@ -431,8 +384,9 @@ Stop all running virtual machines
 .NOTES
 NAME        :  Stop-VBoxMachine
 VERSION     :  0.9
-LAST UPDATED:  6/13/2011
 AUTHOR      :  SERENITY\Jeff
+LAST UPDATED:  7/26/2017
+UPDATED BY  :  J Parker Galbraith
 .LINK
 Get-VBoxMachine
 Start-VBoxMachine
@@ -443,118 +397,139 @@ Strings
 None
 #>
 
-
-[cmdletbinding(SupportsShouldProcess=$True)]
-Param(
-[Parameter(Position=0,Mandatory=$True,HelpMessage="Enter a virtual machine name",
-ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$True)]
-[ValidateNotNullorEmpty()]
-[string[]]$Name
-)
-
-Begin {
-    Write-Verbose "Starting $($myinvocation.mycommand)"
-   #get global vbox variable or create it if it doesn't exist create it
-    if (-Not $global:vbox) {
-        $global:vbox = Get-VirtualBox
-    }
-} #Begin
-
-Process {
-    foreach ($item in $name) {
-
-      #get the virtual machine
-      $vmachine=$vbox.FindMachine($item)
-
-     if ($vmachine) {
-      if ($pscmdlet.ShouldProcess($vmachine.name)) {
-         #create Vbox session object
-         Write-Verbose "Creating a session object"
-         $vsession = New-Object -ComObject "VirtualBox.Session"
-        if ($vmachine.State -eq 5) {
-            Write-verbose "Locking the machine"
-            $vmachine.LockMachine($vsession,1)
-            #send ACPI shutdown signal
-            $vsession.console.PowerButton()
-          }
-        else {
-          Write-Host "I can only stop machines that are running." -ForegroundColor Magenta
+    [cmdletbinding(SupportsShouldProcess=$True)]
+    Param(
+        [Parameter(Position=0,Mandatory=$True,HelpMessage="Enter a virtual machine name",
+            ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$True)]
+        [ValidateNotNullorEmpty()]
+        [string[]]$Name
+    )
+    Begin {
+        Write-Verbose "Starting $($myinvocation.mycommand)"
+        # Get global vbox variable or create it if it doesn't exist create it
+        if (-Not $global:vbox) {
+            $global:vbox = Get-VirtualBox
         }
-      } #should process
-    } #if vmachine
-
-     } #foreach
-} #process
-
-End {
-    Write-Verbose "Ending $($myinvocation.mycommand)"
-} #end
-
+    } #Begin
+    Process {
+        foreach ($item in $name) {
+            # Get the virtual machine
+            $vmachine=$vbox.FindMachine($item)
+            if ($vmachine) {
+                if ($pscmdlet.ShouldProcess($vmachine.name)) {
+                    # Create Vbox session object
+                    Write-Verbose "Creating a session object"
+                    $vsession = New-Object -ComObject "VirtualBox.Session"
+                    if ($vmachine.State -eq 5) {
+                        Write-verbose "Locking the machine"
+                        $vmachine.LockMachine($vsession,1)
+                        # Send ACPI shutdown signal
+                        $vsession.console.PowerButton()
+                    }
+                    else {
+                        Write-Host "I can only stop machines that are running." -ForegroundColor Magenta
+                    }
+                } #should process
+            } #if vmachine
+        } #foreach
+    } #process
+    End {
+        Write-Verbose "Ending $($myinvocation.mycommand)"
+    } #end
 } #end function
 
-Function Get-VBoxProcess {
+Function Suspend-VBoxVM {
 
 <#
 .SYNOPSIS
-Get all VirtualBox related processes
+Suspend a virtual machine.
 .DESCRIPTION
-Find all running processes related to VirtualBox.
+This function will suspend or save the state of a running virtual machine. You must specify the virtual machine by its ID.
+.PARAMETER ID
+The ID or GUID of the running virtual machine.
+.PARAMETER WhatIf
+Show what the command would have processed.
+.PARAMETER Confirm
+Confirm each suspension.
 .EXAMPLE
-PS C:\> Get-VBoxProcess
-Handles  NPM(K)    PM(K)      WS(K) VM(M)   CPU(s)     Id ProcessName
--------  ------    -----      ----- -----   ------     -- -----------
-    401      56    36272      27956   139    36.63   1876 VBoxHeadless
-    754     129   103736      52940   244    76.85  12244 VBoxHeadless
-   3444      17    16076      11844   109 1,351.14   8176 VBoxSVC
-    193      15    19416      55140   137     1.28  12212 VirtualBox
-
-Get all running VirtualBox related processes
+PS C:\> Get-VBoxMachine | Suspend-VBoxMachine
+Suspend all running virtual machines.
 .NOTES
-NAME        :  Get-VboxProcess
+NAME        :  Suspend-VBoxMachine
 VERSION     :  0.9
-LAST UPDATED:  6/13/2011
 AUTHOR      :  Jeffery Hicks
+LAST UPDATED:  7/26/2017
+UPDATED BY  :  J Parker Galbraith
 .LINK
-Get-VirtualBox
+Get-VBoxMachine
+Stop-VBoxMachine
+Start-VBoxMachine
 .INPUTS
-None
+Strings
 .OUTPUTS
-Process object
+None
 #>
 
-[cmdletbinding()]
-Param()
-
-Write-Verbose "Starting $($myinvocation.mycommand)"
-Try {
-  $processes = Get-Process -ErrorAction "Stop" | Where {$_.path -match "oracle\\virt"}
-  Write-Verbose "Found $($processes | measure-object).Count processes)"
-  $processes
-}
-Catch {
-  Write-Host "Failed to find any VirtualBox related processes." -ForegroundColor Magenta
-}
-
-Finally {
- Write-Verbose "Ending $($myinvocation.mycommand)"
-}
-
+    [cmdletbinding(SupportsShouldProcess=$True)]
+    Param(
+        [Parameter(Position=0,Mandatory=$True,HelpMessage="Enter a virtual box machine ID",
+            ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$True)]
+        [ValidateNotNullorEmpty()]
+        [GUID[]]$ID
+    )
+    Begin {
+        Write-Verbose "Starting $($myinvocation.mycommand)"
+        # Get global vbox variable or create it if it doesn't exist
+        if (-Not $global:vbox) {
+            $global:vbox = Get-VirtualBox
+        }
+    } #Begin
+    Process {
+        foreach ($item in $ID) {
+            # Get the virtual machine
+            $vmachine = $vbox.FindMachine($item)
+            if ($vmachine) {
+                Write-Host "Suspending $($vmachine.name)" -ForegroundColor Cyan
+                if ($pscmdlet.ShouldProcess($vmachine.name)) {
+                    # Create Vbox session object
+                    Write-Verbose "Creating a session object"
+                    $vsession = New-Object -ComObject "VirtualBox.Session"
+                    #launch the VMProcess to lock in write mode
+                    Write-verbose "Locking the machine"
+                    $vmachine.LockMachine($vsession,1)
+                    #run the SaveState() method
+                    Write-Verbose "Saving State"
+                    $vsession.Machine.SaveState()
+                } #should process
+            } #if ($vmachine)
+            else {
+                Write-Warning "Failed to find virtual machine with an id of $ID"
+            }
+        } #foreach $ID
+    } #process
+    End {
+        Write-Verbose "Ending $($myinvocation.mycommand)"
+    } #End
 } #end function
 
 #########################################################################################
 
-#Getting a reference to VirtualBox COM object
+#region Initalize module
+#Getting a reference to VirtualBox COM object and set $vbox
 $vbox=Get-VirtualBox
 $status="VirtualBox v{0} rev.{1}  Machines: {2}" -f $vbox.version,$vbox.revision,$vbox.machines.count
 Write-Host $status -ForegroundColor Cyan
+#endregion Initialize module
 
-#Defining some aliases
-New-Alias -Name gvbm -Value Get-VBoxMachine
-New-Alias -Name stovbm -Value Stop-VBoxMachine
-New-Alias -Name stavbm -Value Start-VBoxMachine
-New-Alias -Name suvbm -Value Suspend-VBoxMachine
+#region Define aliases
 New-Alias -Name gvb -Value Get-VirtualBox
-New-Alias -Name gvbp -Value Get-VBoxProcess
+New-Alias -Name gvbhp -Value Get-VBoxHostProcess
+New-Alias -Name gvbm -Value Get-VBoxVM
+New-Alias -Name stavbm -Value Start-VBoxVM
+New-Alias -Name stovbm -Value Stop-VBoxVM
+New-Alias -Name susvbm -Value Suspend-VBoxVM
+#endregion Define aliases
 
-#Exporting some module members
+#region Export some module members
 Export-ModuleMember -Alias * -Function * -Variable vbox
+#endregion Export some module members
