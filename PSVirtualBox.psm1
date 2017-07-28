@@ -287,6 +287,72 @@ Custom Object
     Write-Verbose "Ending $($myinvocation.mycommand)"
 } #end function
 
+Function New-VBoxMachine {
+<#
+.SYNOPSIS
+Create a new vbox virtual machine.
+.DESCRIPTION
+Creates a new, basic vbox VM without much configuration (yet)
+.EXAMPLE
+""
+.NOTES
+NAME        :  New-VBoxMachine
+VERSION     :  0.1
+AUTHOR      :  J Parker Galbraith
+LAST UPDATED:  7/27/2017
+UPDATED BY  :  J Parker Galbraith
+.LINK
+Get-VBoxMachine
+.INPUTS
+""
+.OUTPUTS
+""
+#>
+
+    [cmdletBinding()]
+    Param(        
+        #Add value from pipeline, by property name, etc for $Name (and more?)
+        [Parameter(Mandatory=$true,Position=0)]
+        [string[]]$Name,
+
+        [Parameter(Alias='OS')]
+        [string]$OSType,
+
+        <#[string]$SettingsFile,#>
+        [string[]]$Group = ""#,
+        
+        <#[string[]?]$Flags?#>
+        <# Additional parameters. Default values?
+        []$ProcessorCount ## Alias Processor
+        []$Memory ## Alias RAM
+        []$
+        []$#>
+    )
+    #Begin {
+        # Get a list of valid OS types for a new VM
+        $GuestOSValue = Get-VBoxGuestTypes
+        
+        # Validate $OSType
+        Try {
+            $GuestOSValue.Contains("$OSType")
+        }
+        Catch {
+            Write-Error "$OSType is not a valid operating system value"
+            Write-Verbose 'See the Get-VBoxGuestTypes cmdlet for valid operating system values'
+        }
+        Finally {
+            # Intentionally blank
+        }
+    #} # Begin    
+    #Process {
+        $newVM = $vbox.CreateMachine("","TestVM",$group,"Ubuntu","")
+        $vbox.RegisterMachine($newVM)
+    #}
+    <# End {
+
+    } #>
+}
+
 Function Start-VBoxVM {
 
 <#
