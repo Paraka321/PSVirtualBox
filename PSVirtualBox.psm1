@@ -330,7 +330,7 @@ Get-VBoxMachine
     )
     #Begin {
         # Get a list of valid OS types for a new VM
-        $GuestOSValue = Get-VBoxGuestTypes
+        $GuestOSValue = $vbox.GuestOSTypes.ID
         
         # Validate $OSType
         Try {
